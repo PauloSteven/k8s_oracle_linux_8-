@@ -6,7 +6,12 @@
   become_method: sudo
   become_user: root
   gather_facts: yes 
-  connection: ssh
+  connection: ssh 
+
+  # pre_tasks: 
+  #  - name: Update yum cache if needed. 
+  #    dnf: update_cache=yes  
+  #    # in case of Debian based os the cache valid time can added to this pre_task cache_valid_time=3600 
 
   tasks:
      - name: "TASK: disable firewall service for labs" 
@@ -61,41 +66,44 @@
        shell: |
                yum install -y yum-utils
                yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo  
+               yum-config-manager --enable ol8_addons
        when: ansible_os_family == "RedHat"
 
      - name: "TASK: Install docker and dependencies" 
        dnf: 
          name: "{{ item }}" 
          state: present 
-         update_cache: True 
-         allowerasing: yes
+         allowerasing: yes 
+         disablerepo: kubernetes 
        loop: 
          - docker-ce
          - docker-ce-cli 
          - containerd.io 
 
-     - name: "TASK 11: Configure k8s repository"
+     - name: "TASK 11: Add k8s repository"
        yum_repository:       
          name: Kubernetes
          description: Kubernetes Repository 
-         baseurl: http://yum.kubernetes.io/repos/kubernetes-el7-x86_64
+         baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+         #baseurl: http://yum.kubernetes.io/repos/kubernetes-el7-x86_64
          enabled: yes 
          gpgcheck: yes 
-         gpgkey: 
+         gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
            - https://packages.cloud.google.com/yum/doc/yum-key.gpg
-           - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-         when: "ansible_os_family == RedHat"
+           - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg 
+         exclude: kubelet, kubeadm, kubectl
+       when: ansible_os_family == "RedHat"
 
      - name: "TASK 12: Install kubernetes(kubelet, kubeadm, kubectl)"  
-       dnf:         
+       yum:         
          name: "{{ item }}" 
          state: present 
-         update_cache: True 
+         disable_excludes: kubernetes
        loop: 
          - kubelet
          - kubeadm
          - kubectl 
-       when: "ansible_os_family == RedHat"
+       when: ansible_os_family == "RedHat"
 
      - name: "TASK 13: Start docker and kubelet" 
        service: 
