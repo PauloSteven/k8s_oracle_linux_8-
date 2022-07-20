@@ -1,0 +1,118 @@
+---
+- name: "PLAY 1 : Install kubernentes"
+  hosts: "control, nodes"
+  remote_user: vagrant
+  become: yes
+  become_method: sudo
+  become_user: root
+  gather_facts: no
+  connection: ssh
+
+  tasks:
+     - name: "TASK: disable firewall service for labs" 
+       service:
+         name: firewalld
+         state: stopped
+         enabled: false
+
+     - name: "TASK: Disable SWAP"
+       shell: swapoff -a
+
+     - name: "TASK: Disable SWAP in fstab"
+       lineinfile:
+         path: /etc/fstab
+         regexp: 'swap'
+         state: absent
+
+     - name: "TASK: disable SELinux"
+       command: setenforce 0
+       ignore_errors: yes
+
+     - name: "TASK: disable SELinux on reboot" 
+       selinux:
+         state: disabled  
+     - name: "TASK: Enable kernel module bridge" 
+       modprobe:  
+         name: br_netfilter   
+         state: present     
+
+     - name: "TASK: ensure net.bridge.bridge-nf-call-ip6tables is set to 1" 
+       sysctl:
+         name: net.bridge.bridge-nf-call-ip6tables 
+         value: 1
+         state: present
+
+     - name: "TASK: ensure net.bridge.bridge-nf-call-iptables is set to 1" 
+       sysctl:
+         name: net.bridge.bridge-nf-call-iptables
+         value: 1
+         state: present
+
+     - name: "TASK 5: Enable ip forwarding"
+       sysctl:      
+         name: net.ipv4.ip_forward 
+         value: 1 
+         state: present 
+
+     - name: "TASK 6: Apply new sysctl settings"  
+       command: sysctl --system 
+   
+     - name: "TASK: Add docker repo" 
+       shell: |
+               yum install -y yum-utils
+               yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo 
+
+     - name: "TASK: Install docker and dependencies" 
+       dnf: 
+         name: "{{ item }}" 
+         state: present 
+         update_cache: True
+         allowerasing: yes
+       loop: 
+         - docker-ce
+         - docker-ce-cli 
+         - containerd.io 
+
+     - name: "TASK: Create k8s repository"    
+       file: 
+         path: /etc/yum.repos.d/kubernetes.repo  
+         state: touch  
+
+     - name: "TASK 11: Configure k8s repo file" 
+       blockinfile:
+         path: /etc/yum.repos.d/kubernetes.repo
+         block: |
+                 [kubernetes]
+                 name=Kubernetes
+                 baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+                 enabled=1
+                 gpgcheck=1
+                 repo_gpgcheck=1
+                 gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+                 exclude=kubelet kubeadm kubectl
+
+     - name: "TASK 12: install kubernetes" 
+       dnf:         
+         name: "{{ item }}" 
+         state: present 
+         update_cache: True 
+       loop: 
+         - kubelet
+         - kubeadm
+         - kubectl 
+
+     - name: "TASK 13: Start docker and kubelet" 
+       service: 
+         name: "{{ item }}" 
+         state: started  
+       loop: 
+         - docker 
+         - kubelet  
+
+     - name: "TASK 14: Enable docker and kubelet" 
+       service: 
+         name: "{{ item }}" 
+         state: enabled  
+       loop: 
+         - docker 
+         - kubelet  

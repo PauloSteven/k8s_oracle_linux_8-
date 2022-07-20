@@ -1,0 +1,16 @@
+--- 
+all:  
+   hosts: 
+      control: 
+   children: 
+      nodes:  
+         hosts: 
+            node1: 
+            node2:
+      boss: 
+         hosts:
+            control: 
+   vars: 
+      ntp_server1: "192.0.2.1"       
+      ntp_server2: "192.0.2.2"
+      ansible_python_interpreter: "/usr/bin/env python3"  
