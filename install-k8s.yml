@@ -1,6 +1,6 @@
 ---
 - name: "PLAY 1 : Install kubernentes"
-  hosts: "control, nodes"
+  hosts: "all"
   remote_user: vagrant
   become: yes
   become_method: sudo
@@ -61,12 +61,12 @@
 
      - name: "TASK 6: Apply new sysctl settings"  
        command: sysctl --system 
-   
+      
+     - name: Install needed extra packages  
+       command: dnf install yum-utils -y 
+
      - name: "TASK: Add docker repo" 
-       shell: |
-               yum install -y yum-utils
-               yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo  
-               yum-config-manager --enable ol8_addons
+       command: dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo         
        when: ansible_os_family == "RedHat"
 
      - name: "TASK: Install docker and dependencies" 
@@ -79,19 +79,37 @@
          - docker-ce
          - docker-ce-cli 
          - containerd.io 
+     
+           #   - name: "TASK: Create k8s repository file"
+           #file:
+           #path: /etc/yum.repos.d/kubernetes.repo
+           #state: touch
 
-     - name: "TASK 11: Add k8s repository"
-       yum_repository:       
-         name: Kubernetes
-         description: Kubernetes Repository 
-         baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
-         #baseurl: http://yum.kubernetes.io/repos/kubernetes-el7-x86_64
-         enabled: yes 
-         gpgcheck: yes 
-         gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-           - https://packages.cloud.google.com/yum/doc/yum-key.gpg
-           - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg 
-         exclude: kubelet, kubeadm, kubectl
+#     - name: "TASK 11: Add k8s repository"
+#       blockinfile:
+#         path: /etc/yum.repos.d/kubernetes.repo
+#         block: |
+#                 [kubernetes]
+#                 name=Kubernetes
+#                 baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+#                 enabled=1
+#                 gpgcheck=1
+#                 repo_gpgcheck=1
+#                 gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+#                 exclude=kubelet kubeadm kubectl 
+#
+     - name: tests add repo for k8s  
+       shell: |
+               cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+               [kubernetes]
+               name=Kubernetes
+               baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+               enabled=1
+               gpgcheck=1
+               repo_gpgcheck=1
+               gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+               exclude=kubelet kubeadm kubectl
+               EOF
        when: ansible_os_family == "RedHat"
 
      - name: "TASK 12: Install kubernetes(kubelet, kubeadm, kubectl)"  
@@ -108,15 +126,9 @@
      - name: "TASK 13: Start docker and kubelet" 
        service: 
          name: "{{ item }}" 
-         state: started  
+         state: started 
+         enabled: yes  
        loop: 
          - docker 
          - kubelet  
 
-     - name: "TASK 14: Enable docker and kubelet" 
-       service: 
-         name: "{{ item }}" 
-         state: enabled  
-       loop: 
-         - docker 
-         - kubelet  
