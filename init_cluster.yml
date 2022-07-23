@@ -1,43 +1,49 @@
-- hosts: masters
+- hosts: control 
   become: yes
   tasks:
-    - name: initialize the cluster
-      shell: kubeadm init --pod-network-cidr=10.244.0.0/16
+    - name: "TASK 1: Initialize the kubernetes cluster using kubeadm"
+      shell: kubeadm init --pod-network-cidr=192.168.0.0/16
       args:
         chdir: $HOME
         creates: cluster_initialized.txt
 
-    - name: create .kube directory
+    - name: "TASK 2: Creates .kube directory for kubeconfig setup"
       become: yes
-      become_user: kube
+      become_user: vagrant
       file:
         path: $HOME/.kube
         state: directory
         mode: 0755
 
-    - name: copies admin.conf to user's kube config
+    - name: "TASK 3: Copies k8s admin.conf to .kube/config for vagrant user"
       copy:
         src: /etc/kubernetes/admin.conf
         dest: /home/kube/.kube/config
         remote_src: yes
-        owner: kube
+        owner: vagrant
 
-    - name: install Pod network
+    - name: "TASK 4: Install calico Pod network"
       become: yes
-      become_user: kube
+      become_user: vagrant
       shell: kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml 
       args:
         chdir: $HOME
         
-    - name: Get the token for joining the worker nodes
+    - name: "TASK 5: Generate Join command for workers to join the cluster"
       become: yes
-      become_user: kube
-      shell: kubeadm token create  --print-join-command
-      register: kubernetes_join_command
+      become_user: vagrant
+      command: kubeadm token create  --print-join-command
+      register: kubeadm_join_command
 
-    - debug:
-      msg: "{{ kubernetes_join_command.stdout }}"
+    - name: "TASK 6: Print the output of variable kubeadm_join_command for debug reasons"
+      debug:
+        msg: "{{ kubeadm_join_command.stdout }}"
 
-    - name: Copy join command to local file.
+    - name: "TASK 7: Copy join command to a local file."
       become: yes
-      local_action: copy content="{{ kubernetes_join_command.stdout_lines[0] }}" dest="/tmp/kubernetes_join_command" mode=0777
+      local_action: copy content="{{ kubeadm_join_command.stdout_lines[0] }}" dest="/tmp/kubeadm_join_command" mode=0777
+
+  handlers:   
+    - name: docker started
+      service: name=docker state=started 
+
